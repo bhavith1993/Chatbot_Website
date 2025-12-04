@@ -1,11 +1,13 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `You are a helpful assistant for Rivanoe Analytics. Answer questions about our company, services, and website content accurately and professionally.
+const BASE_SYSTEM_PROMPT = `You are a helpful assistant for Rivanoe Analytics. Answer questions about our company, services, and website content accurately and professionally.
 
 === COMPANY OVERVIEW ===
 Company Name: Rivanoe Analytics
@@ -74,6 +76,61 @@ To get started or schedule a consultation, users should use the contact form on 
 - Focus on how Rivanoe Analytics can solve their specific finance and analytics challenges
 - Highlight our rapid deployment timeline and finance-specific expertise when relevant`;
 
+// Generate embedding using OpenAI
+async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: text,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("OpenAI embedding error:", response.status);
+    return [];
+  }
+
+  const data = await response.json();
+  return data.data[0].embedding;
+}
+
+// Search for relevant content
+async function searchRelevantContent(query: string, openaiKey: string, supabaseUrl: string, supabaseKey: string): Promise<string> {
+  try {
+    const embedding = await generateEmbedding(query, openaiKey);
+    if (embedding.length === 0) {
+      return "";
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { data, error } = await supabase.rpc("match_website_content", {
+      query_embedding: embedding,
+      match_threshold: 0.5,
+      match_count: 3,
+    });
+
+    if (error || !data || data.length === 0) {
+      return "";
+    }
+
+    console.log("Found", data.length, "relevant documents for RAG");
+    
+    const context = data.map((doc: { content: string; similarity: number }) => 
+      `[Relevance: ${(doc.similarity * 100).toFixed(0)}%]\n${doc.content}`
+    ).join("\n\n---\n\n");
+
+    return `\n\n=== ADDITIONAL CONTEXT FROM KNOWLEDGE BASE ===\nThe following information may be relevant to the user's question:\n\n${context}`;
+  } catch (error) {
+    console.error("RAG search error:", error);
+    return "";
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -82,10 +139,29 @@ serve(async (req) => {
   try {
     const { messages } = await req.json();
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!ANTHROPIC_API_KEY) {
       console.error("ANTHROPIC_API_KEY is not configured");
       throw new Error("ANTHROPIC_API_KEY is not configured");
+    }
+
+    // Get the last user message for RAG search
+    const lastUserMessage = messages.filter((m: { role: string }) => m.role === "user").pop();
+    let systemPrompt = BASE_SYSTEM_PROMPT;
+
+    // If we have OpenAI key and Supabase config, try RAG
+    if (OPENAI_API_KEY && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY && lastUserMessage) {
+      console.log("Searching knowledge base for relevant content...");
+      const additionalContext = await searchRelevantContent(
+        lastUserMessage.content,
+        OPENAI_API_KEY,
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      );
+      systemPrompt += additionalContext;
     }
 
     console.log("Sending request to Claude API with", messages.length, "messages");
@@ -100,7 +176,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: messages.map((msg: { role: string; content: string }) => ({
           role: msg.role,
           content: msg.content,
