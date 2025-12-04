@@ -5,6 +5,7 @@ import PowerBIDemo from "@/components/PowerBIDemo";
 import WhyChooseUs from "@/components/WhyChooseUs";
 import ContactForm from "@/components/ContactForm";
 import Footer from "@/components/Footer";
+import Chatbot from "@/components/Chatbot";
 
 const Index = () => {
   return (
@@ -16,6 +17,7 @@ const Index = () => {
       <WhyChooseUs />
       <ContactForm />
       <Footer />
+      <Chatbot />
     </div>
   );
 };
