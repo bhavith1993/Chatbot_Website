@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import ChatContactForm from "./ChatContactForm";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; showContactForm?: boolean };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+const PRICE_KEYWORDS = ["price", "pricing", "cost", "rate", "fee", "charge", "quote", "estimate", "how much"];
 
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -82,17 +85,39 @@ const Chatbot = () => {
     }
   };
 
+  const isPriceQuery = (text: string): boolean => {
+    const lowerText = text.toLowerCase();
+    return PRICE_KEYWORDS.some(keyword => lowerText.includes(keyword));
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMsg: Message = { role: "user", content: input.trim() };
+    const userMessage = input.trim();
+    const userMsg: Message = { role: "user", content: userMessage };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
 
+    // Check if it's a pricing query
+    const isPricing = isPriceQuery(userMessage);
+
     try {
       await streamChat(newMessages);
+      
+      // If pricing query, add contact form after the response
+      if (isPricing) {
+        setMessages(prev => {
+          const lastMsg = prev[prev.length - 1];
+          if (lastMsg?.role === "assistant") {
+            return prev.map((m, i) => 
+              i === prev.length - 1 ? { ...m, showContactForm: true } : m
+            );
+          }
+          return prev;
+        });
+      }
     } catch (error) {
       console.error("Chat error:", error);
       setMessages(prev => [
@@ -154,15 +179,18 @@ const Chatbot = () => {
                     msg.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-foreground"
-                    )}
-                  >
-                    {msg.content}
+                  <div className={cn("max-w-[85%]", msg.role === "user" ? "" : "space-y-2")}>
+                    <div
+                      className={cn(
+                        "rounded-lg px-3 py-2 text-sm",
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground"
+                      )}
+                    >
+                      {msg.content}
+                    </div>
+                    {msg.showContactForm && <ChatContactForm />}
                   </div>
                 </div>
               ))}
