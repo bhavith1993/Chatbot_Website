@@ -11,8 +11,8 @@ import {
   FormField,
   FormItem,
   FormMessage,
-  FormLabel,
 } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Phone, User, CheckCircle } from "lucide-react";
 
@@ -102,12 +102,12 @@ const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
                 id={`size-${option.value}`}
                 className="h-4 w-4"
               />
-              <FormLabel
+              <Label
                 htmlFor={`size-${option.value}`}
                 className="text-xs font-normal cursor-pointer"
               >
                 {option.label}
-              </FormLabel>
+              </Label>
             </div>
           ))}
         </RadioGroup>
