@@ -190,7 +190,7 @@ const Chatbot = () => {
                     >
                       {msg.content}
                     </div>
-                    {msg.showContactForm && <ChatContactForm />}
+                    {msg.showContactForm && <ChatContactForm key={`form-${i}`} />}
                   </div>
                 </div>
               ))}
