@@ -4,19 +4,27 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormMessage,
+  FormLabel,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Phone, Building2, User, CheckCircle } from "lucide-react";
+import { Mail, Phone, User, CheckCircle } from "lucide-react";
+
+const companySizeOptions = [
+  { value: "1-10", label: "1-10" },
+  { value: "11-50", label: "11-50" },
+  { value: "50+", label: "50+" },
+  { value: "200+", label: "200+" },
+];
 
 const chatContactSchema = z.object({
   name: z.string().trim().min(1, { message: "Name is required" }).max(100),
-  companyName: z.string().trim().min(1, { message: "Company is required" }).max(100),
   email: z.string().trim().email({ message: "Invalid email" }).max(255),
   phone: z.string().trim().min(1, { message: "Phone is required" }).max(20),
 });
@@ -29,6 +37,7 @@ interface ChatContactFormProps {
 
 const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
   const { toast } = useToast();
+  const [companySize, setCompanySize] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -36,7 +45,6 @@ const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
     resolver: zodResolver(chatContactSchema),
     defaultValues: {
       name: "",
-      companyName: "",
       email: "",
       phone: "",
     },
@@ -46,7 +54,7 @@ const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
     setIsSubmitting(true);
     
     try {
-      console.log("Chat contact form submitted:", data);
+      console.log("Chat contact form submitted:", { ...data, companySize });
       
       toast({
         title: "Request sent!",
@@ -76,6 +84,38 @@ const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
     );
   }
 
+  // Step 1: Show company size selection
+  if (!companySize) {
+    return (
+      <div className="bg-muted rounded-lg p-3">
+        <p className="text-xs text-muted-foreground mb-3">
+          How many employees does your company have?
+        </p>
+        <RadioGroup
+          onValueChange={(value) => setCompanySize(value)}
+          className="grid grid-cols-2 gap-2"
+        >
+          {companySizeOptions.map((option) => (
+            <div key={option.value} className="flex items-center space-x-2">
+              <RadioGroupItem
+                value={option.value}
+                id={`size-${option.value}`}
+                className="h-4 w-4"
+              />
+              <FormLabel
+                htmlFor={`size-${option.value}`}
+                className="text-xs font-normal cursor-pointer"
+              >
+                {option.label}
+              </FormLabel>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+    );
+  }
+
+  // Step 2: Show contact form after company size is selected
   return (
     <div className="bg-muted rounded-lg p-3">
       <p className="text-xs text-muted-foreground mb-3">
@@ -105,14 +145,15 @@ const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
 
           <FormField
             control={form.control}
-            name="companyName"
+            name="phone"
             render={({ field }) => (
               <FormItem>
                 <FormControl>
                   <div className="relative">
-                    <Building2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <Phone className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
                     <Input
-                      placeholder="Company name"
+                      type="tel"
+                      placeholder="Phone number"
                       className="h-8 text-xs pl-7"
                       {...field}
                     />
@@ -134,27 +175,6 @@ const ChatContactForm = ({ onSubmitSuccess }: ChatContactFormProps) => {
                     <Input
                       type="email"
                       placeholder="Email address"
-                      className="h-8 text-xs pl-7"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage className="text-xs" />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <div className="relative">
-                    <Phone className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                    <Input
-                      type="tel"
-                      placeholder="Phone number"
                       className="h-8 text-xs pl-7"
                       {...field}
                     />
